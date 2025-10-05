@@ -1,7 +1,9 @@
 {
   "targetBaseline": "widely",
-  "scanFiles": "src/**/*.{js,css}",
+  "scanFiles": "src/**/*.{js,jsx,ts,tsx,css}",
   "failOnNewly": true,
   "dryRun": false,
-  "browsers": "defaults"
+  "browsers": "defaults",
+  "reportName": "baseline-report.html",
+  "jsonReportName": "baseline-report.json"
 }
