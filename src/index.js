@@ -3,13 +3,18 @@ const core = require('@actions/core');
 const fs = require('fs');
 const path = require('path');
 const { glob } = require('glob');
+
+
+
 const dataPath = path.join(__dirname, 'web-features', 'data.json');
-features = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
-core.info(`Loaded ${Object.keys(features).length} features from ${dataPath}`);
 if (!fs.existsSync(dataPath)) {
     core.setFailed(`data.json not found at ${dataPath}`);
     process.exit(1);
 }
+features = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+core.info(`Loaded ${Object.keys(features).length} features from ${dataPath}`);
+core.info(`Files in dist: ${fs.readdirSync(__dirname).join(', ')}`);
+
 
 // Robust loader: prefer requiring web-features, fallback to dist/data.json paths
 /*
@@ -103,6 +108,8 @@ function getCompliantFeatureIds(target, failOnNewly) {
   }
 
   for (const [featureId, featureData] of Object.entries(features)) {
+    core.info(`Files in dist: ${fs.readdirSync(__dirname).join(', ')}`);
+
     core.debug(`${featureId}: ${JSON.stringify(featureData.status)}`);
     const status = featureData.status && featureData.status.baseline;
     const lowDate = featureData.status && featureData.status.baseline_low_date;
