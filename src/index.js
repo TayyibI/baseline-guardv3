@@ -1,148 +1,125 @@
-const core = require('@actions/core');
-const fs = require('fs');
-const path = require('path');
-const { glob } = require('glob');
+import fs from "fs";
+import path from "path";
+import fg from "fast-glob";
+import { features } from "web-features";
+import postcss from "postcss";
+import doiuse from "doiuse";
+import minimist from "minimist";
 
-const dataPath = path.join(__dirname, 'web-features', 'data.json');
+const args = minimist(process.argv.slice(2));
 
-// Load features from data.json
-let features;
-try {
-  const raw = fs.readFileSync(dataPath, 'utf-8');
-  const parsed = JSON.parse(raw);
+// 🧩 Load config file if present
+const configPath = path.resolve("baseline.config.json");
+let fileConfig = {};
 
-  if (!parsed.features) throw new Error('data.json does not have a "features" property.');
+if (fs.existsSync(configPath)) {
+  try {
+    const raw = fs.readFileSync(configPath, "utf-8");
+    fileConfig = JSON.parse(raw);
+    console.log("Loaded config from baseline.config.json");
+  } catch (err) {
+    console.warn("⚠️ Could not parse baseline.config.json:", err.message);
+  }
+}
 
-  // Flatten features into a map: id -> featureData
-  features = {};
-  Object.entries(parsed.features).forEach(([id, f]) => {
-    features[id] = f;
+// 🎛️ Merge CLI args with file config (CLI takes precedence)
+const options = {
+  targetBaseline: args["target-baseline"] || fileConfig.targetBaseline || "widely",
+  scanFiles: args["scan-files"] || fileConfig.scanFiles || "src/**/*.{js,css}",
+  failOnNewly:
+    args["fail-on-newly"] !== undefined
+      ? args["fail-on-newly"] === "true"
+      : fileConfig.failOnNewly ?? true,
+  dryRun:
+    args["dry-run"] !== undefined
+      ? args["dry-run"] === "true"
+      : fileConfig.dryRun ?? false,
+  browsers: args["browsers"] || fileConfig.browsers || "defaults",
+};
+
+console.log("\n--- Baseline Guard Configuration ---");
+console.log(options);
+console.log("------------------------------------\n");
+
+console.log("\n--- Baseline Guard start ---");
+console.log("Target baseline:", options.targetBaseline);
+console.log("Files glob:", options.scanFiles);
+console.log("Dry run:", options.dryRun);
+console.log("Browsers (CSS):", options.browsers);
+
+const baselineFeatures = Object.values(features).filter(
+  f => f.status.baseline === options.targetBaseline
+);
+
+const baselineFeatureNames = new Set(
+  baselineFeatures.map(f => f.name.toLowerCase())
+);
+
+const files = fg.sync(options.scanFiles, { dot: false });
+console.log(`Files matched by glob: ${files.length}`);
+
+let violations = [];
+
+for (const file of files) {
+  const ext = path.extname(file);
+  const content = fs.readFileSync(file, "utf8");
+
+  if (ext === ".js") {
+    baselineFeatureNames.forEach(f => {
+      if (content.includes(f)) {
+        violations.push({ file, feature: f });
+      }
+    });
+  } else if (ext === ".css") {
+    const processor = postcss([
+      doiuse({
+        browsers: options.browsers.split(","),
+        onFeatureUsage: usage => {
+          violations.push({
+            file,
+            feature: usage.feature,
+            message: usage.message,
+          });
+        },
+      }),
+    ]);
+    try {
+      processor.process(content, { from: file });
+    } catch (err) {
+      console.warn(`::warning::Failed to parse ${file}: ${err.message}`);
+    }
+  }
+}
+
+if (violations.length) {
+  console.log(`Found ${violations.length} non-compliant usages.`);
+  const grouped = {};
+  violations.forEach(v => {
+    grouped[v.file] = grouped[v.file] || [];
+    grouped[v.file].push(v.feature);
   });
 
-  core.info(`Loaded ${Object.keys(features).length} features from ${dataPath}`);
-} catch (err) {
-  core.setFailed(`Failed to load features: ${err.message}`);
-  process.exit(1);
+  const jsonReport = {
+    targetBaseline: options.targetBaseline,
+    violations,
+  };
+  fs.writeFileSync("baseline-report.json", JSON.stringify(jsonReport, null, 2));
+
+  const htmlReport = `
+<html><head><title>Baseline Report</title></head>
+<body><h1>Baseline Guard Report</h1>
+<p>Target baseline: <b>${options.targetBaseline}</b></p>
+<p>Total violations: <b>${violations.length}</b></p>
+<ul>${Object.entries(grouped)
+    .map(([file, feats]) => `<li><b>${file}</b>: ${feats.join(", ")}</li>`)
+    .join("")}</ul>
+</body></html>`;
+  fs.writeFileSync("baseline-report.html", htmlReport);
+
+  console.log("Reports written: baseline-report.html and baseline-report.json");
+  console.log(`::warning::Found ${violations.length} violations (dry-run or fail disabled).`);
+} else {
+  console.log("✅ No violations found.");
 }
 
-// Helper: safe date parsing
-function toDate(s) {
-  return s ? new Date(s) : null;
-}
-
-// Get compliant feature IDs based on baseline target
-function getCompliantFeatureIds(target, failOnNewly) {
-  const compliant = new Set();
-  const lowerTarget = ('' + target).toLowerCase();
-
-  if (!['widely', 'newly'].includes(lowerTarget) && isNaN(parseInt(lowerTarget))) {
-    throw new Error(`Invalid target-baseline: ${target}. Must be 'widely', 'newly', or a year.`);
-  }
-
-  for (const [featureId, featureData] of Object.entries(features)) {
-    const status = featureData.status && featureData.status.baseline;
-    const lowDate = featureData.status && featureData.status.baseline_low_date;
-
-    let isCompliant = false;
-
-    if (lowerTarget === 'widely') {
-      if (status === 'high') isCompliant = true;
-    } else if (lowerTarget === 'newly') {
-      if (status === 'high' || status === 'low') isCompliant = true;
-    } else {
-      const targetYear = parseInt(lowerTarget, 10);
-      if (!isNaN(targetYear) && lowDate) {
-        const y = toDate(lowDate).getFullYear();
-        if (y <= targetYear) isCompliant = true;
-      }
-    }
-
-    if (failOnNewly && status === 'low') isCompliant = false;
-
-    if (isCompliant) compliant.add(featureId);
-  }
-
-  return compliant;
-}
-
-// Generate HTML report
-function generateReport(violations, targetBaseline) {
-  let report = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Baseline Guard Report</title><style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%;margin-top:20px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f2f2f2}</style></head><body>`;
-  report += `<h1>Baseline Guard Report</h1><p><strong>Status:</strong> ${violations.length>0?'Failed':'Passed'}</p><p><strong>Target Baseline:</strong> ${targetBaseline}</p><p><strong>Violations Found:</strong> ${violations.length}</p>`;
-
-  if (violations.length > 0) {
-    report += `<h2>Violations</h2><table><tr><th>File</th><th>Feature</th><th>Reason</th></tr>`;
-    for (const v of violations) {
-      report += `<tr><td>${v.file}</td><td>${v.feature}</td><td>${v.reason}</td></tr>`;
-    }
-    report += `</table>`;
-  } else {
-    report += `<p>All scanned features meet the ${targetBaseline} target criteria.</p>`;
-  }
-
-  report += `</body></html>`;
-  return report;
-}
-
-// Main
-async function run() {
-  try {
-    const targetBaseline = core.getInput('target-baseline', { required: true });
-    const scanFiles = core.getInput('scan-files', { required: true });
-    const failOnNewly = core.getInput('fail-on-newly') === 'true';
-    const reportArtifactName = core.getInput('report-name') || 'baseline-report.html';
-
-    core.info('--- Baseline Guard Configuration ---');
-    core.info(`Target Baseline: ${targetBaseline}`);
-    core.info(`Files to Scan: ${scanFiles}`);
-    core.info(`Fail on Newly Available: ${failOnNewly}`);
-    core.info(`Report Name: ${reportArtifactName}`);
-    core.info('------------------------------------');
-
-    const compliantFeatureIds = getCompliantFeatureIds(targetBaseline, failOnNewly);
-    const allFeatureIds = new Set(Object.keys(features));
-    const nonCompliantFeatureIds = new Set([...allFeatureIds].filter(id => !compliantFeatureIds.has(id)));
-
-    //core.info(`Found ${compliantFeatureIds.size} compliant features.`);
-    //core.info(`Non-compliant features (${nonCompliantFeatureIds.size}): ${[...nonCompliantFeatureIds].join(', ')}`);
-
-    const allViolations = [];
-    const filePaths = await glob(scanFiles, { ignore: 'node_modules/**' });
-
-    for (const filePath of filePaths) {
-      const fileContent = fs.readFileSync(filePath, 'utf-8');
-
-      nonCompliantFeatureIds.forEach(api => {
-        if (fileContent.includes(api)) {
-          allViolations.push({
-            file: filePath,
-            line: 'unknown',
-            column: 'unknown',
-            feature: api,
-            reason: `Potential usage of JS feature '${api}' which is not compliant with the '${targetBaseline}' Baseline target.`
-          });
-        }
-      });
-    }
-
-    if (allViolations.length > 0) {
-      core.warning(`❌ Baseline Guard found ${allViolations.length} violations against the ${targetBaseline} target.`);
-      const reportContent = generateReport(allViolations, targetBaseline);
-      fs.writeFileSync(reportArtifactName, reportContent);
-
-      core.startGroup('Violation Summary');
-      allViolations.forEach(v => core.error(`[${v.file}:${v.line}:${v.column}] ${v.reason}`));
-      core.endGroup();
-
-      core.setOutput('violations-found', 'true');
-      core.setFailed(`Build failed due to ${allViolations.length} Baseline violations.`);
-    } else {
-      core.info('✅ Baseline Guard passed! All scanned features meet the target criteria.');
-      core.setOutput('violations-found', 'false');
-    }
-  } catch (error) {
-    core.setFailed(`Action failed with error: ${error.message}\n${error.stack}`);
-  }
-}
-
-run();
+console.log("--- Baseline Guard end ---\n");

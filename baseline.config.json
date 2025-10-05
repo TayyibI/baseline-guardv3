@@ -1,0 +1,7 @@
+{
+  "targetBaseline": "widely",
+  "scanFiles": "src/**/*.{js,css}",
+  "failOnNewly": true,
+  "dryRun": false,
+  "browsers": "defaults"
+}
