@@ -1,0 +1,1 @@
+// sample file for baseline-guard test\nconsole.log('hello');\n

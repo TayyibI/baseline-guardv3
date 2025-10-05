@@ -1,0 +1,41 @@
+
+name: Baseline Check (test)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    paths:
+      - "src/**"
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build
+
+      - name: Run Baseline Guard action
+        uses: ./
+        id: baseline
+        with:
+          target-baseline: "widely"
+          scan-files: "src/**/*.{js,css}"
+          fail-on-newly: "true"
+
+      - name: Upload report (artifact)
+        if: steps.baseline.outcome == 'failure' || always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-report
+          path: baseline-report.html

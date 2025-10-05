@@ -1,0 +1,25 @@
+name: "Baseline Guard"
+description: "Checks CSS & JS against Web Platform Baseline thresholds"
+inputs:
+  target-baseline:
+    description: "Baseline target (widely, newly, or year, e.g. '2024')"
+    required: true
+  scan-files:
+    description: "Glob of files to scan (e.g. 'src/**/*.{js,css}')"
+    required: true
+  fail-on-newly:
+    description: "If true, features only newly supported are disallowed"
+    required: false
+    default: "false"
+  report-name:
+    description: "HTML report filename (artifact)"
+    required: false
+    default: "baseline-report.html"
+runs:
+  using: "node16"
+  main: "dist/index.js"
+outputs:
+  violations:
+    description: "true if violations found"
+  report-path:
+    description: "Path to the generated report"
