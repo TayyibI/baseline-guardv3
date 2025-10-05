@@ -103,8 +103,8 @@ async function run() {
     const allFeatureIds = new Set(Object.keys(features));
     const nonCompliantFeatureIds = new Set([...allFeatureIds].filter(id => !compliantFeatureIds.has(id)));
 
-    core.info(`Found ${compliantFeatureIds.size} compliant features.`);
-    core.info(`Non-compliant features (${nonCompliantFeatureIds.size}): ${[...nonCompliantFeatureIds].join(', ')}`);
+    //core.info(`Found ${compliantFeatureIds.size} compliant features.`);
+    //core.info(`Non-compliant features (${nonCompliantFeatureIds.size}): ${[...nonCompliantFeatureIds].join(', ')}`);
 
     const allViolations = [];
     const filePaths = await glob(scanFiles, { ignore: 'node_modules/**' });
