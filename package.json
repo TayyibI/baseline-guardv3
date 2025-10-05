@@ -4,7 +4,7 @@
   "description": "GitHub Action to enforce Web Platform Baseline compatibility",
   "main": "dist/index.js",
   "scripts": {
-    "build": "rimraf dist && ncc build src/index.js --license licenses.txt && copyfiles -u 2 node_modules/web-features/data.json dist",
+    "build": "rimraf dist && ncc build src/index.js --license licenses.txt && copyfiles -u 0 node_modules/web-features/data.json dist/web-features/",
     "lint": "eslint . --ext .js,.css"
   },
   "keywords": [
