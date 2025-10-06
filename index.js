@@ -17,7 +17,6 @@ import * as tsParser from "@typescript-eslint/parser";
 import jsx from "acorn-jsx";
 const AcornParser = acorn.Parser.extend(jsx());
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -50,6 +49,20 @@ class Config {
       }
     }
 
+    const defaultJsWhitelist = [
+      // Keywords & Control Flow
+      'if', 'for', 'while', 'switch', 'function', 'class', 'import', 'export',
+      'let', 'const', 'var', 'return', 'throw', 'catch', 'finally', 'debugger',
+      // Common Array Methods
+      'push', 'pop', 'shift', 'unshift', 'slice', 'splice', 'indexOf', 'length',
+      'map', 'filter', 'reduce', 'forEach', 'some', 'every', 'find', 'findIndex', 'includes',
+      // Common Object/Map/Set Methods
+      'has', 'get', 'set', 'delete', 'keys', 'values', 'entries',
+      // Common in Node.js build scripts
+      'dirname'
+    ];
+
+
     // Merge sources: file config < env < cli
     this.targetBaseline = this.getInput('target-baseline', fileConfig.targetBaseline || 'widely');
     this.scanFiles = this.getInput('scan-files', fileConfig.scanFiles || 'src/**/*.{js,jsx,ts,tsx,css}');
@@ -58,7 +71,9 @@ class Config {
     this.browsers = this.getInput('browsers', fileConfig.browsers || 'defaults');
     this.ignorePatterns = fileConfig.ignorePatterns || [];
     this.reportDir = fileConfig.reportDir || 'reports/baseline';
-    
+    this.jsWhitelist = fileConfig.jsWhitelist || defaultJsWhitelist;
+
+
     // JS-specific settings
     this.jsSettings = {
       ignoreCommonFalsePositives: fileConfig.jsSettings?.ignoreCommonFalsePositives ?? true,
@@ -109,12 +124,15 @@ class FeatureManager {
   constructor() {
     this.features = null;
     this.compliantCache = new Map();
+    this.falsePositives = new Set(config.jsWhitelist || []);
     this.falsePositives = new Set([
-      // Common variable names that aren't web features
+       // Common variable names that aren't web features
       'if', 'for', 'while', 'switch', 'function', 'class', 'import', 'export',
       'let', 'const', 'var', 'return', 'throw', 'catch', 'finally', 'debugger',
-      'push', 'pop', 'shift', 'unshift', 'slice', 'splice', 'indexOf', 'length'
-    ]);
+      'push', 'pop', 'shift', 'unshift', 'slice', 'splice', 'indexOf', 'length',
+      'has', 'get', 'set', 'delete', 'keys', 'values', 'entries', 'map', 'filter', 'reduce',
+      'forEach', 'some', 'every', 'find', 'findIndex', 'includes','dirname'
+     ]);
   }
 
   loadFeatures() {
@@ -190,16 +208,16 @@ class FeatureManager {
     return isCompliant;
   }
 
+
   isFalsePositive(featureName) {
-    return config.jsSettings.ignoreCommonFalsePositives && 
-           this.falsePositives.has(featureName.toLowerCase());
+    return config.jsSettings.ignoreCommonFalsePositives && this.falsePositives.has(featureName.toLowerCase());
   }
 }
 
 const featureManager = new FeatureManager();
 
 
-// --- Improved JS Scanner with reduced false positives ---
+// --- JS Scanner ---
 class JSScanner {
   constructor() {
     this.seenKeys = new Set();
@@ -348,19 +366,20 @@ class JSScanner {
     return violations;
   }
 
-  checkFeature(featureName, node, filePath, violations) {
+// In the JSScanner class
+checkFeature(featureName, node, filePath, violations) {
     // Normalize feature name
     const normalizedName = featureName.toLowerCase();
-    
+
     // Skip false positives
     if (featureManager.isFalsePositive(normalizedName)) return;
-    
+
     // Skip if feature is compliant
     if (featureManager.isCompliant(normalizedName)) return;
 
     const line = node.loc?.start?.line || 'unknown';
     const key = `${filePath}:${line}:${normalizedName}`;
-    
+
     if (!this.seenKeys.has(key)) {
       this.seenKeys.add(key);
       violations.push({ 
@@ -370,7 +389,7 @@ class JSScanner {
         type: 'js',
         context: this.getNodeContext(node)
       });
-    }
+    } 
   }
 
   getNodeContext(node) {
@@ -381,7 +400,7 @@ class JSScanner {
   }
 }
 
-// --- CSS Scanner with better error handling ---
+// --- CSS Scanner ---
 class CSSScanner {
   async scanFiles(cssFiles) {
     const violations = [];
@@ -577,8 +596,9 @@ async function main() {
   }
 }
 
-// Run if called directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+const isMainModule = path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+
+if (isMainModule) {
   main();
 }
 
