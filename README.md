@@ -32,7 +32,4 @@ npm run build
 
 The build step requires `node_modules/web-features/data.json` to exist (it will after `npm install`). The `copyfiles -u 2` in the build script ensures the data is copied to `dist/data.json` (fixes nested path issues).
 
-## Notes
-- For accurate CSS enforcement, you may want to enable ESLint with `@eslint/css` and the `css/require-baseline` rule in your repository CI or extend the action to run lint as well.
-- The action currently uses a simple string containment check for JS feature usage — you can improve it by adding AST-based detection.
 
