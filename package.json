@@ -7,6 +7,9 @@
   "bin": {
     "baseline-guard": "src/index.js"
   },
+  "eslintConfig": {
+  "parser": "@typescript-eslint/parser"
+  },
   "scripts": {
     "build": "rimraf dist && ncc build src/index.js --license licenses.txt && copyfiles -u 1 node_modules/web-features/data.json dist",
     "test": "node test/test-runner.js",
@@ -42,7 +45,7 @@
     "glob": "^10.3.10",
     "minimist": "^1.2.8",
     "rimraf": "^5.0.5",
-    "web-features": "^3.3.0"
+    "web-features": "^3.3.0"    
   },
   "devDependencies": {
     "eslint": "^9.10.0"
