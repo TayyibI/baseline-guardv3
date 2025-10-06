@@ -23,4 +23,4 @@ inputs:
     default: 'defaults'
 runs:
   using: 'node16'
-  main: 'src/index.js'
+  main: 'index.js'
