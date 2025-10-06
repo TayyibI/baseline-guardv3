@@ -38,29 +38,18 @@ class Config {
 
   loadConfig() {
     // Try to load from config file first
-    const configPath = path.resolve('baseline-guard.config.json');
+    const configPath = path.resolve('baseline.config');
     let fileConfig = {};
     if (fs.existsSync(configPath)) {
       try {
         fileConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        console.log('📁 Loaded config from baseline-guard.config.json');
+        console.log('📁 Loaded config from baseline.config');
       } catch (err) {
         this.warn(`Could not parse config file: ${err.message}`);
       }
     }
 
-    const defaultJsWhitelist = [
-      // Keywords & Control Flow
-      'if', 'for', 'while', 'switch', 'function', 'class', 'import', 'export',
-      'let', 'const', 'var', 'return', 'throw', 'catch', 'finally', 'debugger',
-      // Common Array Methods
-      'push', 'pop', 'shift', 'unshift', 'slice', 'splice', 'indexOf', 'length',
-      'map', 'filter', 'reduce', 'forEach', 'some', 'every', 'find', 'findIndex', 'includes',
-      // Common Object/Map/Set Methods
-      'has', 'get', 'set', 'delete', 'keys', 'values', 'entries',
-      // Common in Node.js build scripts
-      'dirname'
-    ];
+    
 
 
     // Merge sources: file config < env < cli
@@ -71,7 +60,7 @@ class Config {
     this.browsers = this.getInput('browsers', fileConfig.browsers || 'defaults');
     this.ignorePatterns = fileConfig.ignorePatterns || [];
     this.reportDir = fileConfig.reportDir || 'reports/baseline';
-    this.jsWhitelist = fileConfig.jsWhitelist || defaultJsWhitelist;
+    this.jsWhitelist = fileConfig.jsWhitelist;
 
 
     // JS-specific settings
@@ -125,14 +114,6 @@ class FeatureManager {
     this.features = null;
     this.compliantCache = new Map();
     this.falsePositives = new Set(config.jsWhitelist || []);
-    this.falsePositives = new Set([
-       // Common variable names that aren't web features
-      'if', 'for', 'while', 'switch', 'function', 'class', 'import', 'export',
-      'let', 'const', 'var', 'return', 'throw', 'catch', 'finally', 'debugger',
-      'push', 'pop', 'shift', 'unshift', 'slice', 'splice', 'indexOf', 'length',
-      'has', 'get', 'set', 'delete', 'keys', 'values', 'entries', 'map', 'filter', 'reduce',
-      'forEach', 'some', 'every', 'find', 'findIndex', 'includes','dirname'
-     ]);
   }
 
   loadFeatures() {

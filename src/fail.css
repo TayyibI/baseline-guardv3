@@ -1,0 +1,3 @@
+@media (prefers-reduced-data: reduce) {
+  body { background-image: none; }
+}

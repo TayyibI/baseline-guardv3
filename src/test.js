@@ -1,15 +1,30 @@
-// If baseline is "2020", these might fail:
-
-// Too new - Array.at() (2021)
-const lastItem = array.at(-1);
-
-// Too new - Private class fields (2021) 
-class MyClass {
-  #privateField = 42;
+function oldStringMethods() {
+    let text = "hello world";
+    console.log(text.big());     // Should be flagged
+    console.log(text.blink());   // Should be flagged
+    console.log(text.bold());    // Should be flagged
 }
 
-// Too new - Promise.any() (2021)
-Promise.any(promises);
+// 2. Deprecated Array Method (Firefox only)
+function oldArrayMethod() {
+    let arr = [1, 2, 3];
+    console.log(arr.toSource()); // Non-standard, should be flagged
+}
 
-// Too new - String.replaceAll() (2021)
-"hello".replaceAll("l", "x");
+// 3. Document Writing (Harmful practice)
+function badDocumentPractice() {
+    document.write("This blocks rendering!"); // Should be flagged
+}
+
+// 4. Legacy DOM (Creating elements with attributes)
+function legacyDOM() {
+    let badElement = document.createElement("<p id='myId'>"); // Non-standard
+}
+
+// 5. Global namespace pollution
+var globalPolluter = "This pollutes the global scope"; // Should be flagged
+
+oldStringMethods();
+oldArrayMethod();
+badDocumentPractice();
+legacyDOM();

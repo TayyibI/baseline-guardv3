@@ -1,0 +1,5 @@
+.image {
+  aspect-ratio: 16 / 9;
+  background-color: blue;
+  display: block;
+}
