@@ -2,22 +2,22 @@
   "name": "baseline-guard",
   "version": "1.0.0",
   "description": "A GitHub Action and CLI tool that scans your JS/CSS/TS codebase for web features not meeting your chosen Web Platform Baseline target.",
-  "main": "src/index.js",
+  "main": "index.js",
   "type": "module",
   "bin": {
-    "baseline-guard": "src/index.js"
+    "baseline-guard": "index.js"
   },
   "eslintConfig": {
     "parser": "@typescript-eslint/parser"
   },
   "scripts": {
-    "build": "rimraf dist && ncc build src/index.js --license licenses.txt && copyfiles -u 1 node_modules/web-features/data.json dist",
+    "build": "rimraf dist && ncc build index.js --license licenses.txt && copyfiles -u 1 node_modules/web-features/data.json dist",
     "test": "node test/test-runner.js",
-    "start": "node src/index.js",
-    "dry-run": "node src/index.js --dry-run",
-    "run:widely": "node src/index.js --target-baseline=widely",
-    "run:newly": "node src/index.js --target-baseline=newly",
-    "run:2024": "node src/index.js --target-baseline=2024"
+    "start": "node index.js",
+    "dry-run": "node index.js --dry-run",
+    "run:widely": "node index.js --target-baseline=widely",
+    "run:newly": "node index.js --target-baseline=newly",
+    "run:2024": "node index.js --target-baseline=2024"
   },
   "keywords": [
     "baseline",
