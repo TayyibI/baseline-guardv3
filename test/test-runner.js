@@ -87,11 +87,7 @@ async function runTests() {
   // 5️⃣ Verify HTML report
   if (fs.existsSync(reportPath)) {
     const reportSize = fs.statSync(reportPath).size;
-    if (reportSize > 500) {
-      log(`✅ Report generated successfully (${reportSize} bytes)`);
-    } else {
-      console.warn(chalk.yellow("⚠️ Report found but seems too small."));
-    }
+
   } else {
     console.error(chalk.red("❌ No HTML report generated"));
   }

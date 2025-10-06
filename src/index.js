@@ -13,6 +13,10 @@ import doiuse from 'doiuse';
 import postcss from 'postcss';
 import minimist from 'minimist';
 import { fileURLToPath } from 'url';
+import * as tsParser from "@typescript-eslint/parser";
+import jsx from "acorn-jsx";
+const AcornParser = acorn.Parser.extend(jsx());
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -194,27 +198,69 @@ class FeatureManager {
 
 const featureManager = new FeatureManager();
 
+
 // --- Improved JS Scanner with reduced false positives ---
 class JSScanner {
   constructor() {
     this.seenKeys = new Set();
   }
-
-  scanFile(filePath) {
-    const code = fs.readFileSync(filePath, 'utf8');
-    let ast;
-    
+  safeParseJS(code, filePath) {
     try {
-      ast = acorn.parse(code, { 
-        ecmaVersion: 'latest', 
-        sourceType: 'module', 
+      if (!code.trim()) {
+        Logger.warn(`Skipping empty file: ${filePath}`);
+        return null;
+      }
+
+      return AcornParser.parse(code, {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        allowAwaitOutsideFunction: true,
+        allowImportExportEverywhere: true,
         locations: true,
-        allowAwaitOutsideFunction: true
       });
     } catch (err) {
-      Logger.warn(`Failed to parse ${filePath}: ${err.message}`);
+      Logger.warn(`Failed to parse JS file ${filePath}: ${err.message}`);
+      return null;
+    }
+  }
+
+  safeParseTS(code, filePath) {
+    try {
+      if (!code.trim()) {
+        Logger.warn(`Skipping empty TS file: ${filePath}`);
+        return null;
+      }
+
+      return tsParser.parse(code, {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        range: true,
+        loc: true,
+        ecmaFeatures: { jsx: true },
+      });
+    } catch (err) {
+      Logger.warn(`Failed to parse TS file ${filePath}: ${err.message}`);
+      return null;
+    }
+  }
+  scanFile(filePath) {
+    let code;
+    try {
+      code = fs.readFileSync(filePath, "utf8");
+    } catch (err) {
+      Logger.warn(`Unable to read file ${filePath}: ${err.message}`);
       return [];
     }
+
+    const isTS = filePath.endsWith(".ts") || filePath.endsWith(".tsx");
+    const isJS = filePath.endsWith(".js") || filePath.endsWith(".jsx");
+
+    let ast = null;
+    if (isTS) ast = this.safeParseTS(code, filePath);
+    else if (isJS) ast = this.safeParseJS(code, filePath);
+    else return []; // Ignore unknown file types
+
+    if (!ast) return [];
 
     const violations = [];
     const context = {
@@ -225,81 +271,79 @@ class JSScanner {
 
     const self = this;
 
-    walk.simple(ast, {
-      // Track context to reduce false positives
-      VariableDeclarator(node) {
-        context.inDeclaration = true;
-        context.inAssignment = true;
-      },
-      AssignmentExpression(node) {
-        context.inAssignment = true;
-      },
-      FunctionDeclaration(node) {
-        context.currentFunction = node.id?.name || 'anonymous';
-      },
-      FunctionExpression(node) {
-        context.currentFunction = node.id?.name || 'anonymous';
-      },
-      ArrowFunctionExpression(node) {
-        context.currentFunction = 'arrow';
-      },
+    try {
+      walk.simple(ast, {
+        VariableDeclarator(node) {
+          if (!node || !node.type) return;
+          context.inDeclaration = true;
+          context.inAssignment = true;
+        },
+        AssignmentExpression(node) {
+          if (!node || !node.type) return;
+          context.inAssignment = true;
+        },
+        FunctionDeclaration(node) {
+          if (!node || !node.type) return;
+          context.currentFunction = node.id?.name || "anonymous";
+        },
+        FunctionExpression(node) {
+          if (!node || !node.type) return;
+          context.currentFunction = node.id?.name || "anonymous";
+        },
+        ArrowFunctionExpression(node) {
+          if (!node || !node.type) return;
+          context.currentFunction = "arrow";
+        },
 
-      // Reset context after operations
-      'VariableDeclarator:exit': () => { context.inDeclaration = false; context.inAssignment = false; },
-      'AssignmentExpression:exit': () => { context.inAssignment = false; },
-      'FunctionDeclaration:exit': () => { context.currentFunction = null; },
-      'FunctionExpression:exit': () => { context.currentFunction = null; },
-      'ArrowFunctionExpression:exit': () => { context.currentFunction = null; },
+        "VariableDeclarator:exit": () => { context.inDeclaration = false; context.inAssignment = false; },
+        "AssignmentExpression:exit": () => { context.inAssignment = false; },
+        "FunctionDeclaration:exit": () => { context.currentFunction = null; },
+        "FunctionExpression:exit": () => { context.currentFunction = null; },
+        "ArrowFunctionExpression:exit": () => { context.currentFunction = null; },
 
-      // Actual feature detection with context awareness
-      Identifier(node) {
-        if (context.inDeclaration && node.parent.type === 'VariableDeclarator' && node.parent.id === node) {
-          return; // Skip variable declarations (let x = ...)
-        }
-        
-        if (context.inAssignment && node.parent.type === 'AssignmentExpression' && node.parent.left === node) {
-          return; // Skip assignment targets (x = ...)
-        }
+        Identifier(node) {
+          if (!node || !node.type || !node.parent) return;
+          if (context.inDeclaration && node.parent?.type === "VariableDeclarator" && node.parent.id === node) return;
+          if (context.inAssignment && node.parent?.type === "AssignmentExpression" && node.parent.left === node) return;
+          if (node.parent?.type === "MemberExpression" && node.parent.property === node && !node.parent.computed) return;
+          if (node.parent?.type === "Property" && node.parent.key === node && !node.parent.computed) return;
+          self.checkFeature(node.name, node, filePath, violations);
+        },
 
-        if (node.parent.type === 'MemberExpression' && node.parent.property === node && !node.parent.computed) {
-          return; // Skip property names in member expressions (handled below)
-        }
-
-        if (node.parent.type === 'Property' && node.parent.key === node && !node.parent.computed) {
-          return; // Skip object property names
-        }
-
-        self.checkFeature(node.name, node, filePath, violations);
-      },
-
-      MemberExpression(node) {
-        if (node.property.type === 'Identifier' && !node.computed) {
-          self.checkFeature(node.property.name, node, filePath, violations);
-        }
-      },
-
-      CallExpression(node) {
-        if (node.callee.type === 'Identifier') {
-          self.checkFeature(node.callee.name, node, filePath, violations);
-        } else if (node.callee.type === 'MemberExpression' && node.callee.property.type === 'Identifier') {
-          self.checkFeature(node.callee.property.name, node, filePath, violations);
-        }
-      },
-
-      ImportDeclaration(node) {
-        self.checkFeature('import', node, filePath, violations);
-        // Check imported specifiers
-        node.specifiers.forEach(spec => {
-          if (spec.type === 'ImportSpecifier') {
-            self.checkFeature(spec.imported.name, node, filePath, violations);
+        MemberExpression(node) {
+          if (!node || !node.property || !node.property.type) return;
+          if (node.property.type === "Identifier" && !node.computed) {
+            self.checkFeature(node.property.name, node, filePath, violations);
           }
-        });
-      },
+        },
 
-      // Specific syntax features
-      AwaitExpression(node) { self.checkFeature('await', node, filePath, violations); },
-      YieldExpression(node) { self.checkFeature('yield', node, filePath, violations); }
-    });
+        CallExpression(node) {
+          if (!node || !node.callee) return;
+          if (node.callee.type === "Identifier") {
+            self.checkFeature(node.callee.name, node, filePath, violations);
+          } else if (node.callee.type === "MemberExpression" && node.callee.property?.type === "Identifier") {
+            self.checkFeature(node.callee.property.name, node, filePath, violations);
+          }
+        },
+
+        ImportDeclaration(node) {
+          if (!node) return;
+          self.checkFeature("import", node, filePath, violations);
+          if (Array.isArray(node.specifiers)) {
+            node.specifiers.forEach((spec) => {
+              if (spec?.type === "ImportSpecifier" && spec.imported?.name) {
+                self.checkFeature(spec.imported.name, node, filePath, violations);
+              }
+            });
+          }
+        },
+
+        AwaitExpression(node) { if (node) self.checkFeature("await", node, filePath, violations); },
+        YieldExpression(node) { if (node) self.checkFeature("yield", node, filePath, violations); }
+      });
+    } catch (err) {
+      Logger.warn(`Walk error in ${filePath}: ${err.message}`);
+    }
 
     return violations;
   }
@@ -341,27 +385,29 @@ class JSScanner {
 class CSSScanner {
   async scanFiles(cssFiles) {
     const violations = [];
-    
     for (const filePath of cssFiles) {
       try {
-        const css = fs.readFileSync(filePath, 'utf8');
-        
-        // Use doiuse as a plugin with PostCSS
+        const css = fs.readFileSync(filePath, "utf8");
+        if (!css.trim()) {
+          Logger.warn(`Skipping empty CSS file: ${filePath}`);
+          continue;
+        }
+
         const processor = postcss([
           doiuse({
-            browsers: config.browsers.split(','),
+            browsers: config.browsers.split(","),
             onFeatureUsage: (usage) => {
               if (!featureManager.isCompliant(usage.feature)) {
                 violations.push({
                   file: filePath,
-                  line: usage.usage?.start?.line || 'unknown',
+                  line: usage.usage?.start?.line || "unknown",
                   feature: usage.feature,
-                  type: 'css',
-                  message: usage.message
+                  type: "css",
+                  message: usage.message,
                 });
               }
-            }
-          })
+            },
+          }),
         ]);
 
         await processor.process(css, { from: filePath });
@@ -369,10 +415,10 @@ class CSSScanner {
         Logger.warn(`CSS scan failed for ${filePath}: ${err.message}`);
       }
     }
-
     return violations;
   }
 }
+
 
 // --- Report Generator ---
 class ReportGenerator {

@@ -37,5 +37,6 @@ jobs:
         with:
           name: baseline-report
           path: |
-            baseline-report.html
-            baseline-report.json
+            reports/baseline/baseline-report.html
+            reports/baseline/baseline-report.json
+
