@@ -1,14 +1,14 @@
 {
   "name": "baseline-guard",
   "version": "1.0.0",
-  "description": "A GitHub Action and CLI tool that scans your JS/CSS codebase for web features not meeting your chosen Web Platform Baseline target.",
+  "description": "A GitHub Action and CLI tool that scans your JS/CSS/TS codebase for web features not meeting your chosen Web Platform Baseline target.",
   "main": "src/index.js",
   "type": "module",
   "bin": {
     "baseline-guard": "src/index.js"
   },
   "eslintConfig": {
-  "parser": "@typescript-eslint/parser"
+    "parser": "@typescript-eslint/parser"
   },
   "scripts": {
     "build": "rimraf dist && ncc build src/index.js --license licenses.txt && copyfiles -u 1 node_modules/web-features/data.json dist",
@@ -26,15 +26,21 @@
     "eslint",
     "css",
     "javascript",
-    "web-features"
+    "typescript",
+    "web-features",
+    "acorn",
+    "linting",
+    "cross-browser"
   ],
   "author": "Tayyib Ismail",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.10.1",
     "@actions/github": "^6.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "@vercel/ncc": "^0.38.1",
     "acorn": "^8.12.1",
+    "acorn-jsx": "^5.3.2",
     "acorn-walk": "^8.3.2",
     "chalk": "^5.3.0",
     "commander": "^11.1.0",
@@ -45,7 +51,7 @@
     "glob": "^10.3.10",
     "minimist": "^1.2.8",
     "rimraf": "^5.0.5",
-    "web-features": "^3.3.0"    
+    "web-features": "^3.3.0"
   },
   "devDependencies": {
     "eslint": "^9.10.0"
