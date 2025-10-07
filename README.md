@@ -78,14 +78,16 @@ Configure: Add baseline.config at repo root (JSON):
 ```
 Usage
 
-Add code files to src/ (e.g., JS/TS/CSS).
+1. Add code files to src/ (e.g., JS/TS/CSS).
+2. As everything is configurable you can add whitelisted features, change where files are scanned from, or the target baseline
+3. Push to GitHub to trigger the action.
+4. Check the Actions tab for logs and download baseline-report.html/json from artifacts.
+5. Purpose: failOnNewly lets you decide how strict the action is:
 
-As everything is configurable you can add whitelisted features, change where files are scanned from, or the target baseline
+true: Enforces strict compliance (e.g., for production apps needing wide browser support). Any low-baseline or limited-availability feature (not high in web-features/data.json) fails the build.
+false: Allows violations to be reported (in baseline-report.html/json) without failing the CI, useful for testing or gradual adoption (e.g., you want to know about issues but not block PRs).
 
-Push to GitHub to trigger the action.
-
-Check the Actions tab for logs and download baseline-report.html/json from artifacts.
-
+Changes will still be made but the Github Actions will show which commit passes and which fails
 
 The build step requires `node_modules/web-features/data.json` to exist (it will after `npm install`). The `copyfiles -u 2` in the build script ensures the data is copied to `dist/data.json` (fixes nested path issues).
 
