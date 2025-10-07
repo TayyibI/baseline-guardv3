@@ -85,6 +85,7 @@ Usage
 5. Purpose: failOnNewly lets you decide how strict the action is:
 
 true: Enforces strict compliance (e.g., for production apps needing wide browser support). Any low-baseline or limited-availability feature (not high in web-features/data.json) fails the build.
+
 false: Allows violations to be reported (in baseline-report.html/json) without failing the CI, useful for testing or gradual adoption (e.g., you want to know about issues but not block PRs).
 
 Changes will still be made but the Github Actions will show which commit passes and which fails
