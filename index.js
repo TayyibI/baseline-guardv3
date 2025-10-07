@@ -55,8 +55,8 @@ class Config {
     // Merge sources: file config < env < cli
     this.targetBaseline = this.getInput('target-baseline', fileConfig.targetBaseline || 'widely');
     this.scanFiles = this.getInput('scan-files', fileConfig.scanFiles || 'src/**/*.{js,jsx,ts,tsx,css}');
-    this.failOnNewly = this.getInput('fail-on-newly', fileConfig.failOnNewly ?? true) === true;
-    this.dryRun = this.getInput('dry-run', fileConfig.dryRun ?? false) === true;
+    this.failOnNewly = this.getInput('fail-on-newly', fileConfig.failOnNewly ?? true) === 'true' || fileConfig.failOnNewly === true;
+    this.dryRun = this.getInput('dry-run', fileConfig.dryRun ?? false) === 'true' || fileConfig.dryRun === true;
     this.browsers = this.getInput('browsers', fileConfig.browsers || 'defaults');
     this.ignorePatterns = fileConfig.ignorePatterns || [];
     this.reportDir = fileConfig.reportDir || 'reports/baseline';

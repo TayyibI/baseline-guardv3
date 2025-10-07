@@ -39,4 +39,6 @@ jobs:
           path: |
             reports/baseline/baseline-report.html
             reports/baseline/baseline-report.json
+    env:
+      FAIL_ON_NEWLY: true
 
